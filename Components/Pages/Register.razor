@@ -1,0 +1,236 @@
+@page "/register"
+@using EventEaseApp.Models
+@using EventEaseApp.Services
+@using System.ComponentModel.DataAnnotations
+@inject EventService EventService
+@inject RegistrationService RegistrationService
+@inject SessionService SessionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Register - EventEase</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h2>Event Registration</h2>
+                </div>
+                <div class="card-body">
+                    @if (showSuccess)
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <h4 class="alert-heading">Registration Successful!</h4>
+                            <p>Thank you for registering, <strong>@registration.Name</strong>!</p>
+                            <p>A confirmation email has been sent to <strong>@registration.Email</strong>.</p>
+                            <hr>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" @onclick="RegisterAnother">Register Another</button>
+                                <a href="/events" class="btn btn-outline-success">Browse Events</a>
+                                <a href="/attendance" class="btn btn-outline-info">View Attendance</a>
+                            </div>
+                        </div>
+                    }
+                    else if (showError)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <strong>Registration Failed!</strong> @errorMessage
+                            <button type="button" class="btn-close" @onclick="() => showError = false"></button>
+                        </div>
+                    }
+
+                    @if (!showSuccess)
+                    {
+                        <EditForm Model="@registration" OnValidSubmit="@HandleValidSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" />
+
+                            <div class="mb-3">
+                                <label for="eventId" class="form-label">Select Event <span class="text-danger">*</span></label>
+                                <InputSelect id="eventId" class="form-select" @bind-Value="registration.EventId">
+                                    <option value="0">-- Choose an event --</option>
+                                    @foreach (var evt in events)
+                                    {
+                                        <option value="@evt.Id">
+                                            @evt.Name - @evt.Date.ToString("MMM dd, yyyy") - @evt.Location
+                                            (@evt.CurrentAttendees/@evt.MaxAttendees attendees)
+                                        </option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => registration.EventId)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <InputText id="name" class="form-control" @bind-Value="registration.Name" placeholder="Enter your full name" />
+                                <ValidationMessage For="@(() => registration.Name)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                                <InputText id="email" type="email" class="form-control" @bind-Value="registration.Email" placeholder="your.email@example.com" />
+                                <ValidationMessage For="@(() => registration.Email)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                                <InputText id="phone" class="form-control" @bind-Value="registration.Phone" placeholder="(123) 456-7890" />
+                                <ValidationMessage For="@(() => registration.Phone)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="company" class="form-label">Company/Organization (Optional)</label>
+                                <InputText id="company" class="form-control" @bind-Value="registration.Company" placeholder="Your company name" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="requirements" class="form-label">Special Requirements (Optional)</label>
+                                <InputTextArea id="requirements" class="form-control" rows="3" @bind-Value="registration.SpecialRequirements" placeholder="Any dietary restrictions, accessibility needs, etc." />
+                                <ValidationMessage For="@(() => registration.SpecialRequirements)" />
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="/events" class="btn btn-outline-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-success btn-lg" disabled="@isSubmitting">
+                                    @if (isSubmitting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Processing...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Complete Registration</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+
+            @if (preSelectedEvent != null && !showSuccess)
+            {
+                <div class="card mt-3 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Selected Event Details</h5>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-3">Event:</dt>
+                            <dd class="col-sm-9">@preSelectedEvent.Name</dd>
+
+                            <dt class="col-sm-3">Date:</dt>
+                            <dd class="col-sm-9">@preSelectedEvent.Date.ToString("MMMM dd, yyyy")</dd>
+
+                            <dt class="col-sm-3">Location:</dt>
+                            <dd class="col-sm-9">@preSelectedEvent.Location</dd>
+
+                            <dt class="col-sm-3">Availability:</dt>
+                            <dd class="col-sm-9">
+                                @(preSelectedEvent.MaxAttendees - preSelectedEvent.CurrentAttendees) spots remaining
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public int EventId { get; set; }
+
+    private Registration registration = new();
+    private List<Event> events = new();
+    private Event? preSelectedEvent;
+    private bool showSuccess = false;
+    private bool showError = false;
+    private string errorMessage = string.Empty;
+    private bool isSubmitting = false;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            events = EventService.GetAllEvents();
+
+            // Pre-select event if provided in query string
+            if (EventId > 0)
+            {
+                registration.EventId = EventId;
+                preSelectedEvent = EventService.GetEventById(EventId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading events: {ex.Message}");
+            errorMessage = "Unable to load events. Please try again later.";
+            showError = true;
+        }
+    }    private void HandleValidSubmit()
+    {
+        isSubmitting = true;
+        showError = false;
+        errorMessage = string.Empty;
+
+        try
+        {
+            // Validate event capacity
+            var selectedEvent = EventService.GetEventById(registration.EventId);
+            if (selectedEvent == null)
+            {
+                errorMessage = "Selected event not found.";
+                showError = true;
+                isSubmitting = false;
+                return;
+            }
+
+            if (selectedEvent.CurrentAttendees >= selectedEvent.MaxAttendees)
+            {
+                errorMessage = "Sorry, this event is full. Please select another event.";
+                showError = true;
+                isSubmitting = false;
+                return;
+            }
+
+            // Register the user
+            var success = RegistrationService.RegisterForEvent(registration);
+
+            if (success)
+            {
+                // Update event attendees
+                EventService.RegisterAttendee(registration.EventId);
+
+                // Update session
+                SessionService.SetUserInfo(registration.Name, registration.Email);
+                SessionService.AddRegisteredEvent(registration.EventId);
+
+                // Show success message
+                showSuccess = true;
+            }
+            else
+            {
+                errorMessage = "Registration failed. You may already be registered for this event.";
+                showError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during registration: {ex.Message}");
+            errorMessage = "An error occurred during registration. Please try again.";
+            showError = true;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void RegisterAnother()
+    {
+        registration = new Registration();
+        preSelectedEvent = null;
+        showSuccess = false;
+        showError = false;
+    }
+}

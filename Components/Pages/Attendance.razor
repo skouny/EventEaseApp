@@ -1,0 +1,305 @@
+@page "/attendance"
+@using EventEaseApp.Models
+@using EventEaseApp.Services
+@inject EventService EventService
+@inject RegistrationService RegistrationService
+@inject SessionService SessionService
+@rendermode InteractiveServer
+
+<PageTitle>Attendance Tracker - EventEase</PageTitle>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Attendance Tracker</h1>
+                <div>
+                    <span class="badge bg-info me-2">Session: @GetSessionDuration()</span>
+                    @if (session.IsActive)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+                </div>
+            </div>
+
+            <!-- Session Summary -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">Total Events</h5>
+                            <h2 class="display-4">@events.Count</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Total Registrations</h5>
+                            <h2 class="display-4">@registrations.Count</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">Events Viewed</h5>
+                            <h2 class="display-4">@session.ViewedEvents.Count</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Session Info -->
+            @if (!string.IsNullOrEmpty(session.UserName))
+            {
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Your Session Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-4">Name:</dt>
+                                    <dd class="col-sm-8">@session.UserName</dd>
+
+                                    <dt class="col-sm-4">Email:</dt>
+                                    <dd class="col-sm-8">@session.UserEmail</dd>
+
+                                    <dt class="col-sm-4">Session Start:</dt>
+                                    <dd class="col-sm-8">@session.SessionStart.ToString("MMM dd, yyyy h:mm tt")</dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-5">Last Activity:</dt>
+                                    <dd class="col-sm-7">@session.LastActivity.ToString("MMM dd, yyyy h:mm tt")</dd>
+
+                                    <dt class="col-sm-5">Events Registered:</dt>
+                                    <dd class="col-sm-7">
+                                        <span class="badge bg-success">@session.RegisteredEvents.Count</span>
+                                    </dd>
+
+                                    <dt class="col-sm-5">Session Duration:</dt>
+                                    <dd class="col-sm-7">@GetSessionDuration()</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Event Attendance Details -->
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Event Attendance Details</h4>
+                </div>
+                <div class="card-body">
+                    @if (!events.Any())
+                    {
+                        <div class="alert alert-info">
+                            <p class="mb-0">No events available.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Event Name</th>
+                                        <th>Date</th>
+                                        <th>Location</th>
+                                        <th>Registered</th>
+                                        <th>Capacity</th>
+                                        <th>Availability</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var evt in events.OrderBy(e => e.Date))
+                                    {
+                                        var percentage = GetCapacityPercentage(evt);
+                                        var registrationsForEvent = GetRegistrationsForEvent(evt.Id);
+
+                                        <tr>
+                                            <td>
+                                                <strong>@evt.Name</strong>
+                                            </td>
+                                            <td>@evt.Date.ToString("MMM dd, yyyy")</td>
+                                            <td>@evt.Location</td>
+                                            <td>
+                                                <a href="#" @onclick="() => ShowRegistrations(evt.Id)" @onclick:preventDefault>
+                                                    @evt.CurrentAttendees
+                                                </a>
+                                            </td>
+                                            <td>@evt.MaxAttendees</td>
+                                            <td>
+                                                <div class="progress" style="height: 25px;">
+                                                    <div class="progress-bar @GetProgressBarClass(percentage)" 
+                                                         role="progressbar" 
+                                                         style="width: @percentage%"
+                                                         aria-valuenow="@percentage" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                        @percentage%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge @GetStatusBadgeClass(evt)">
+                                                    @GetEventStatus(evt)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Selected Event Registrations -->
+            @if (selectedEventId > 0)
+            {
+                var selectedEvent = events.FirstOrDefault(e => e.Id == selectedEventId);
+                var eventRegistrations = GetRegistrationsForEvent(selectedEventId);
+
+                <div class="card mt-4 shadow">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Registrations for @selectedEvent?.Name</h5>
+                        <button class="btn btn-sm btn-light" @onclick="() => selectedEventId = 0">Close</button>
+                    </div>
+                    <div class="card-body">
+                        @if (!eventRegistrations.Any())
+                        {
+                            <p class="text-muted">No registrations yet for this event.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>Company</th>
+                                            <th>Registration Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var (reg, index) in eventRegistrations.Select((r, i) => (r, i + 1)))
+                                        {
+                                            <tr>
+                                                <td>@index</td>
+                                                <td>@reg.Name</td>
+                                                <td>@reg.Email</td>
+                                                <td>@reg.Phone</td>
+                                                <td>@(string.IsNullOrEmpty(reg.Company) ? "-" : reg.Company)</td>
+                                                <td>@reg.RegistrationDate.ToString("MMM dd, yyyy h:mm tt")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Event> events = new();
+    private List<Registration> registrations = new();
+    private UserSession session = new();
+    private int selectedEventId = 0;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            events = EventService.GetAllEvents();
+            registrations = RegistrationService.GetAllRegistrations();
+            session = SessionService.GetCurrentSession();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading attendance data: {ex.Message}");
+        }
+    }
+
+    private int GetCapacityPercentage(Event evt)
+    {
+        if (evt.MaxAttendees == 0)
+            return 0;
+
+        return (int)((double)evt.CurrentAttendees / evt.MaxAttendees * 100);
+    }
+
+    private string GetProgressBarClass(int percentage)
+    {
+        if (percentage >= 90)
+            return "bg-danger";
+        else if (percentage >= 70)
+            return "bg-warning";
+        else if (percentage >= 50)
+            return "bg-info";
+        else
+            return "bg-success";
+    }
+
+    private string GetEventStatus(Event evt)
+    {
+        if (evt.CurrentAttendees >= evt.MaxAttendees)
+            return "Full";
+        else if (evt.Date < DateTime.Now)
+            return "Past";
+        else if (evt.CurrentAttendees >= evt.MaxAttendees * 0.9)
+            return "Nearly Full";
+        else
+            return "Open";
+    }
+
+    private string GetStatusBadgeClass(Event evt)
+    {
+        var status = GetEventStatus(evt);
+        return status switch
+        {
+            "Full" => "bg-danger",
+            "Past" => "bg-secondary",
+            "Nearly Full" => "bg-warning",
+            _ => "bg-success"
+        };
+    }
+
+    private List<Registration> GetRegistrationsForEvent(int eventId)
+    {
+        return RegistrationService.GetRegistrationsByEvent(eventId);
+    }
+
+    private void ShowRegistrations(int eventId)
+    {
+        selectedEventId = selectedEventId == eventId ? 0 : eventId;
+    }
+
+    private string GetSessionDuration()
+    {
+        var duration = SessionService.GetSessionDuration();
+        if (duration.TotalMinutes < 1)
+            return "Just now";
+        else if (duration.TotalHours < 1)
+            return $"{(int)duration.TotalMinutes} min";
+        else
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+    }
+}

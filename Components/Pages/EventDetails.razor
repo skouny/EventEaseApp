@@ -1,0 +1,128 @@
+@page "/event-details/{id:int}"
+@using EventEaseApp.Models
+@using EventEaseApp.Services
+@inject EventService EventService
+@inject SessionService SessionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Event Details - EventEase</PageTitle>
+
+<div class="container mt-4">
+    @if (currentEvent == null)
+    {
+        <div class="alert alert-warning">
+            <h4>Event Not Found</h4>
+            <p>The event you're looking for doesn't exist or has been removed.</p>
+            <a href="/events" class="btn btn-primary">Back to Events</a>
+        </div>
+    }
+    else
+    {
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="/events">Events</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@currentEvent.Name</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h2>@currentEvent.Name</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Event Information</h5>
+                        <dl class="row">
+                            <dt class="col-sm-4">Date:</dt>
+                            <dd class="col-sm-8">@currentEvent.Date.ToString("MMMM dd, yyyy")</dd>
+
+                            <dt class="col-sm-4">Location:</dt>
+                            <dd class="col-sm-8">@currentEvent.Location</dd>
+
+                            <dt class="col-sm-4">Capacity:</dt>
+                            <dd class="col-sm-8">@currentEvent.MaxAttendees people</dd>
+
+                            <dt class="col-sm-4">Registered:</dt>
+                            <dd class="col-sm-8">
+                                @currentEvent.CurrentAttendees / @currentEvent.MaxAttendees
+                                <span class="badge @(GetCapacityBadgeClass())">
+                                    @GetCapacityPercentage()% Full
+                                </span>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Description</h5>
+                        <p>@currentEvent.Description</p>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    @if (currentEvent.CurrentAttendees < currentEvent.MaxAttendees)
+                    {
+                        <a href="@($"/register?eventId={currentEvent.Id}")" class="btn btn-success btn-lg">Register for this Event</a>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary btn-lg" disabled>Event is Full</button>
+                    }
+                    <a href="/events" class="btn btn-outline-primary btn-lg ms-2">Back to Events</a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Event? currentEvent;    protected override void OnInitialized()
+    {
+        // Use EventService with validation - handles invalid IDs gracefully
+        try
+        {
+            if (Id <= 0)
+            {
+                currentEvent = null;
+                return;
+            }
+
+            currentEvent = EventService.GetEventById(Id);
+            
+            // Track viewed event in session
+            if (currentEvent != null)
+            {
+                SessionService.AddViewedEvent(Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle errors gracefully and redirect to events page
+            Console.WriteLine($"Error loading event details: {ex.Message}");
+            currentEvent = null;
+        }
+    }
+
+    private int GetCapacityPercentage()
+    {
+        if (currentEvent == null || currentEvent.MaxAttendees == 0)
+            return 0;
+
+        return (int)((double)currentEvent.CurrentAttendees / currentEvent.MaxAttendees * 100);
+    }
+
+    private string GetCapacityBadgeClass()
+    {
+        var percentage = GetCapacityPercentage();
+        if (percentage >= 90)
+            return "bg-danger";
+        else if (percentage >= 70)
+            return "bg-warning";
+        else
+            return "bg-success";
+    }
+}

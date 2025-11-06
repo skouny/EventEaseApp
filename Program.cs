@@ -1,10 +1,16 @@
 using EventEaseApp.Components;
+using EventEaseApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Register services as singletons for state management
+builder.Services.AddSingleton<EventService>();
+builder.Services.AddSingleton<RegistrationService>();
+builder.Services.AddScoped<SessionService>();
 
 var app = builder.Build();
 

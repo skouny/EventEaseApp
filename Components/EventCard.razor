@@ -1,0 +1,23 @@
+@using EventEaseApp.Models
+
+<div class="event-card">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">@Event?.Name</h5>
+            <p class="card-text">
+                <strong>Date:</strong> @Event?.Date.ToString("MMM dd, yyyy")<br />
+                <strong>Location:</strong> @Event?.Location<br />
+                <strong>Description:</strong> @Event?.Description
+            </p>
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="badge bg-info">@Event?.CurrentAttendees / @Event?.MaxAttendees attendees</span>
+                <a href="@($"/event-details/{Event?.Id}")" class="btn btn-sm btn-primary">View Details</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Event? Event { get; set; }
+}

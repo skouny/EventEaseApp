@@ -1,0 +1,23 @@
+.event-card {
+    margin-bottom: 1rem;
+}
+
+.event-card .card {
+    transition: transform 0.2s ease-in-out;
+    border-radius: 8px;
+}
+
+.event-card .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.event-card .card-title {
+    color: #0066cc;
+    font-weight: bold;
+}
+
+.event-card .card-text {
+    font-size: 0.95rem;
+    color: #555;
+}
